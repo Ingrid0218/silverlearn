@@ -32,32 +32,9 @@
 
 #### 畫面截圖
 
-- 可瀏覽公開頁面
-首頁 <img width="1896" height="966" alt="image" src="https://github.com/user-attachments/assets/d1cb3dbf-65a7-4cfc-a903-47d91aaafedd" />
-課程簡介 <img width="1897" height="967" alt="image" src="https://github.com/user-attachments/assets/13e4535a-241c-4bf8-aa59-5f7203072422" />
-課程行事曆 <img width="1897" height="965" alt="image" src="https://github.com/user-attachments/assets/db21c9b6-7cf9-406a-8b2c-b2d42be4a9db" />
-課程評鑑 <img width="1917" height="968" alt="image" src="https://github.com/user-attachments/assets/205078c3-ff76-4f4b-b77c-033c08261777" />
+點擊各角色標題即可展開截圖。
 
-- 總院管理者介面
-講師履歷 <img width="1917" height="971" alt="image" src="https://github.com/user-attachments/assets/5b538146-62a2-488c-8b92-fa07eb386717" />
-課程管理 <img width="1917" height="1027" alt="image" src="https://github.com/user-attachments/assets/14cc3a4d-aab5-43a3-bcaf-90b0d32d826b" />
-講師排班 <img width="1917" height="1026" alt="image" src="https://github.com/user-attachments/assets/3f4bc723-5d44-4154-8c7f-acfa0649324a" />
-費用結算 <img width="1917" height="1030" alt="image" src="https://github.com/user-attachments/assets/92df5a60-5fcb-4c77-a551-142a86e7f9d6" />
-出席確認 (已完成) <img width="1895" height="968" alt="image" src="https://github.com/user-attachments/assets/e301c5ae-94a5-4aba-a2ad-58cb7ef5ef43" />
-出席確認 (待確認) <img width="1892" height="972" alt="image" src="https://github.com/user-attachments/assets/1463eea9-645c-4a51-b478-e5795b4097e4" />
-講師對話 <img width="1897" height="971" alt="image" src="https://github.com/user-attachments/assets/04ed307b-8e43-4ecd-b3a7-1aa85959393a" />
-
-- 據點人員介面
-講師排班 <img width="1917" height="1028" alt="image" src="https://github.com/user-attachments/assets/697e6fcd-bd5c-4e84-8cdf-0cb688bd397a" />
-出席確認 (已完成) <img width="1917" height="967" alt="image" src="https://github.com/user-attachments/assets/356c898f-7e91-4f23-af54-11c1dbc2a3c2" />
-出席確認 (待確認) <img width="1917" height="968" alt="image" src="https://github.com/user-attachments/assets/6e9c64f6-2d01-44b5-9731-4a4d5db46303" />
-
-- 家屬介面
-我的長者 <img width="1917" height="967" alt="image" src="https://github.com/user-attachments/assets/0b21d70c-8a03-4ad8-bc8e-c4710a9d6112" />
-課程紀錄 <img width="1917" height="968" alt="image" src="https://github.com/user-attachments/assets/6ede892d-471d-4f60-b762-d00658f7caaf" />
-
-- 長者專屬連結
-<img width="1917" height="968" alt="image" src="https://github.com/user-attachments/assets/d4b5da53-69e1-42ad-9bd8-2c65afc2bbe4" />
+<details open> <summary><b>公開頁面（不需登入）</b></summary> <br> <table> <tr> <td width="50%" align="center"> <img src="https://github.com/user-attachments/assets/d1cb3dbf-65a7-4cfc-a903-47d91aaafedd" width="100%" alt="首頁" /><br> <sub>首頁</sub> </td> <td width="50%" align="center"> <img src="https://github.com/user-attachments/assets/13e4535a-241c-4bf8-aa59-5f7203072422" width="100%" alt="課程簡介" /><br> <sub>課程簡介</sub> </td> </tr> <tr> <td width="50%" align="center"> <img src="https://github.com/user-attachments/assets/db21c9b6-7cf9-406a-8b2c-b2d42be4a9db" width="100%" alt="課程行事曆" /><br> <sub>課程行事曆</sub> </td> <td width="50%" align="center"> <img src="https://github.com/user-attachments/assets/205078c3-ff76-4f4b-b77c-033c08261777" width="100%" alt="課程評鑑" /><br> <sub>課程評鑑</sub> </td> </tr> </table> </details> <details> <summary><b>總院管理者介面</b></summary> <br> <table> <tr> <td width="50%" align="center"> <img src="https://github.com/user-attachments/assets/5b538146-62a2-488c-8b92-fa07eb386717" width="100%" alt="講師履歷" /><br> <sub>講師履歷</sub> </td> <td width="50%" align="center"> <img src="https://github.com/user-attachments/assets/14cc3a4d-aab5-43a3-bcaf-90b0d32d826b" width="100%" alt="課程管理" /><br> <sub>課程管理</sub> </td> </tr> <tr> <td width="50%" align="center"> <img src="https://github.com/user-attachments/assets/3f4bc723-5d44-4154-8c7f-acfa0649324a" width="100%" alt="講師排班" /><br> <sub>講師排班</sub> </td> <td width="50%" align="center"> <img src="https://github.com/user-attachments/assets/92df5a60-5fcb-4c77-a551-142a86e7f9d6" width="100%" alt="費用結算" /><br> <sub>費用結算</sub> </td> </tr> <tr> <td width="50%" align="center"> <img src="https://github.com/user-attachments/assets/1463eea9-645c-4a51-b478-e5795b4097e4" width="100%" alt="出席確認（待確認）" /><br> <sub>出席確認（待確認）</sub> </td> <td width="50%" align="center"> <img src="https://github.com/user-attachments/assets/e301c5ae-94a5-4aba-a2ad-58cb7ef5ef43" width="100%" alt="出席確認（已完成）" /><br> <sub>出席確認（已完成）</sub> </td> </tr> <tr> <td width="50%" align="center"> <img src="https://github.com/user-attachments/assets/04ed307b-8e43-4ecd-b3a7-1aa85959393a" width="100%" alt="講師對話" /><br> <sub>講師對話</sub> </td> <td width="50%"></td> </tr> </table> </details> <details> <summary><b>據點人員介面</b></summary> <br> <table> <tr> <td width="50%" align="center"> <img src="https://github.com/user-attachments/assets/6e9c64f6-2d01-44b5-9731-4a4d5db46303" width="100%" alt="出席確認（待確認）" /><br> <sub>出席確認（待確認）</sub> </td> <td width="50%" align="center"> <img src="https://github.com/user-attachments/assets/356c898f-7e91-4f23-af54-11c1dbc2a3c2" width="100%" alt="出席確認（已完成）" /><br> <sub>出席確認（已完成）</sub> </td> </tr> <tr> <td width="50%" align="center"> <img src="https://github.com/user-attachments/assets/697e6fcd-bd5c-4e84-8cdf-0cb688bd397a" width="100%" alt="講師排班（本據點課程行事曆）" /><br> <sub>講師排班（本據點課程行事曆）</sub> </td> <td width="50%"></td> </tr> </table> </details> <details> <summary><b>家屬介面與長者專屬連結</b></summary> <br> <table> <tr> <td width="50%" align="center"> <img src="https://github.com/user-attachments/assets/0b21d70c-8a03-4ad8-bc8e-c4710a9d6112" width="100%" alt="我的長者" /><br> <sub>我的長者</sub> </td> <td width="50%" align="center"> <img src="https://github.com/user-attachments/assets/6ede892d-471d-4f60-b762-d00658f7caaf" width="100%" alt="課程紀錄" /><br> <sub>課程紀錄</sub> </td> </tr> <tr> <td width="50%" align="center"> <img src="https://github.com/user-attachments/assets/d4b5da53-69e1-42ad-9bd8-2c65afc2bbe4" width="100%" alt="長者專屬連結（免登入大字體頁面）" /><br> <sub>長者專屬連結（免登入大字體頁面）</sub> </td> <td width="50%"></td> </tr> </table> </details>
 
 #### 備註
 
