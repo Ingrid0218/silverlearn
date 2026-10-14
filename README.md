@@ -52,6 +52,13 @@
 出席確認 (已完成) <img width="1917" height="967" alt="image" src="https://github.com/user-attachments/assets/356c898f-7e91-4f23-af54-11c1dbc2a3c2" />
 出席確認 (待確認) <img width="1917" height="968" alt="image" src="https://github.com/user-attachments/assets/6e9c64f6-2d01-44b5-9731-4a4d5db46303" />
 
+- 家屬介面
+我的長者 <img width="1917" height="967" alt="image" src="https://github.com/user-attachments/assets/0b21d70c-8a03-4ad8-bc8e-c4710a9d6112" />
+課程紀錄 <img width="1917" height="968" alt="image" src="https://github.com/user-attachments/assets/6ede892d-471d-4f60-b762-d00658f7caaf" />
+
+- 長者專屬連結
+<img width="1917" height="968" alt="image" src="https://github.com/user-attachments/assets/d4b5da53-69e1-42ad-9bd8-2c65afc2bbe4" />
+
 #### 備註
 
 - 系統內資料皆為測試資料，不含任何真實個人資訊。
