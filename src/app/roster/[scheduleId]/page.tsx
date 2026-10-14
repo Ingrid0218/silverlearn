@@ -81,8 +81,9 @@ function RosterContent() {
             const e = d.data();
             let elderNotes = "";
             try {
-              const elderSnap = await getDoc(doc(db, "elders", e.elderId));
-              if (elderSnap.exists()) elderNotes = elderSnap.data().notes ?? "";
+              // 備註屬於敏感資訊,存在 elder_private,只有總院、據點人員與家屬本人能讀
+              const privateSnap = await getDoc(doc(db, "elder_private", e.elderId));
+              if (privateSnap.exists()) elderNotes = privateSnap.data().notes ?? "";
             } catch {
               elderNotes = "";
             }

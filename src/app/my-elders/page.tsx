@@ -7,6 +7,7 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
+  setDoc,
   doc,
   query,
   where,
@@ -47,15 +48,45 @@ function MyEldersContent() {
   const [notes, setNotes] = React.useState("");
   const [saving, setSaving] = React.useState(false);
 
+  // 長者資料分兩處存放:
+  // - elders:只有姓名,公開可讀(長者專屬連結免登入需要顯示姓名)
+  // - elder_private:年齡與備註(健康、行動等敏感資訊),只有家屬本人、總院與據點人員可讀
+  const [publicElders, setPublicElders] = React.useState<{ id: string; name: string }[]>([]);
+  const [privateInfo, setPrivateInfo] = React.useState<Record<string, { age: string; notes: string }>>({});
+
   React.useEffect(() => {
     if (!user) return;
     const q = query(collection(db, "elders"), where("familyUid", "==", user.uid));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setElders(snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as ElderProfile)));
+      setPublicElders(snapshot.docs.map((d) => ({ id: d.id, name: d.data().name })));
       setLoading(false);
     });
     return () => unsubscribe();
   }, [user]);
+
+  React.useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, "elder_private"), where("familyUid", "==", user.uid));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const map: Record<string, { age: string; notes: string }> = {};
+      snapshot.docs.forEach((d) => {
+        map[d.id] = { age: d.data().age ?? "", notes: d.data().notes ?? "" };
+      });
+      setPrivateInfo(map);
+    });
+    return () => unsubscribe();
+  }, [user]);
+
+  React.useEffect(() => {
+    setElders(
+      publicElders.map((e) => ({
+        id: e.id,
+        name: e.name,
+        age: privateInfo[e.id]?.age ?? "",
+        notes: privateInfo[e.id]?.notes ?? "",
+      }))
+    );
+  }, [publicElders, privateInfo]);
 
   function openCreateDialog() {
     setEditingId(null);
@@ -81,9 +112,12 @@ function MyEldersContent() {
     setSaving(true);
     try {
       if (editingId) {
-        await updateDoc(doc(db, "elders", editingId), { name, age, notes });
+        await updateDoc(doc(db, "elders", editingId), { name });
+        await setDoc(doc(db, "elder_private", editingId), { age, notes, familyUid: user.uid });
       } else {
-        await addDoc(collection(db, "elders"), { name, age, notes, familyUid: user.uid });
+        // 先建立公開的 elders(只有姓名),再用同一個 ID 建立私密資料
+        const ref = await addDoc(collection(db, "elders"), { name, familyUid: user.uid });
+        await setDoc(doc(db, "elder_private", ref.id), { age, notes, familyUid: user.uid });
       }
       setDialogOpen(false);
     } catch (err) {
@@ -99,6 +133,7 @@ function MyEldersContent() {
     if (!confirm("確定要刪除這位長者的資料嗎?之前幫他報名的課程紀錄不會被刪除。")) return;
     setSaving(true);
     try {
+      await deleteDoc(doc(db, "elder_private", editingId));
       await deleteDoc(doc(db, "elders", editingId));
       setDialogOpen(false);
     } catch (err) {
@@ -186,7 +221,7 @@ function MyEldersContent() {
               <Textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="例如:行動需要輔助、飲食禁忌等,方便據點人員留意"
+                placeholder="例如:行動需要輔助、飲食禁忌等,方便據點人員留意(僅您本人、總院與據點人員可見)"
                 rows={3}
               />
             </div>
