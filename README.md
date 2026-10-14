@@ -32,7 +32,11 @@
 
 #### 畫面截圖
 
-（放 2–3 張主要畫面截圖）
+- 可瀏覽公開頁面
+| <img width="1917" height="1027" alt="image" src="https://github.com/user-attachments/assets/0220df3d-97bf-461e-8aa7-b7ce1f49b5d0" /> | <img width="1917" height="1025" alt="image" src="https://github.com/user-attachments/assets/8070a10d-ad5b-4f96-b1f4-31eb79d9318c" /> | <img width="1917" height="1028" alt="image" src="https://github.com/user-attachments/assets/c00feeba-6fd8-44d9-a828-031da14a4e4a" /> | 
+
+
+
 
 #### 備註
 
