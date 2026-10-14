@@ -26,7 +26,7 @@
 #### 使用技術
 
 - 前端：Next.js、TypeScript、Tailwind CSS、shadcn/ui
-- 資料庫：Firebase Firestore
+- 資料庫與登入：Firebase Firestore、Firebase Authentication
 - 部署：Vercel
 - 開發工具：Firebase Studio、AI 輔助開發工具
 
