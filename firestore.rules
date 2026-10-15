@@ -1,0 +1,215 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- 共用判斷 ----------
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function myProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && myProfile().role == 'admin';
+    }
+
+    function isStaff() {
+      return isSignedIn() && myProfile().role == 'staff';
+    }
+
+    function isInstructor() {
+      return isSignedIn() && myProfile().role == 'instructor';
+    }
+
+    function scheduleOf(scheduleId) {
+      return get(/databases/$(database)/documents/schedules/$(scheduleId)).data;
+    }
+
+    function isAvailabilityLocked() {
+      return exists(/databases/$(database)/documents/settings/general) &&
+        get(/databases/$(database)/documents/settings/general).data.availabilityLocked == true;
+    }
+
+    // 報名截止:上課日前一天中午 12:00(台灣時間)
+    // 規則以 UTC 計算,先 +8 小時換成台灣日期、取當天 00:00,再往回推 20 小時
+    function enrollmentOpen(scheduleId) {
+      let start = scheduleOf(scheduleId).startTime;
+      return request.time < (start + duration.value(8, 'h')).date() - duration.value(20, 'h');
+    }
+
+    // ---------- 帳號與講師 ----------
+
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      // 自行註冊只能建立講師或家屬帳號,不能自己設成 admin/staff
+      allow create: if isAdmin() || (
+        isSignedIn() && request.auth.uid == userId &&
+        (request.resource.data.role == 'instructor' || request.resource.data.role == 'family')
+      );
+      allow update, delete: if isAdmin();
+    }
+
+    match /applications/{appId} {
+      allow read: if isAdmin() || (isSignedIn() && appId == request.auth.uid);
+      allow create: if isSignedIn() && appId == request.auth.uid &&
+        request.resource.data.status == 'Pending' &&
+        request.resource.data.instructor.hourlyRate == 0;
+      allow update: if isAdmin() || (
+        isSignedIn() && appId == request.auth.uid && resource.data.status == 'Pending'
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /instructor_availability/{uid} {
+      allow read: if isAdmin() || (isSignedIn() && uid == request.auth.uid);
+      allow write: if isSignedIn() && uid == request.auth.uid && !isAvailabilityLocked();
+    }
+
+    match /messages/{messageId} {
+      allow read: if isAdmin() || (isInstructor() && resource.data.instructorId == request.auth.uid);
+      allow create: if (isAdmin() && request.resource.data.senderRole == 'admin')
+        || (isInstructor() && request.resource.data.instructorId == request.auth.uid
+            && request.resource.data.senderRole == 'instructor');
+      allow update, delete: if isAdmin();
+    }
+
+    match /payroll/{payrollId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /settings/{settingId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ---------- 公開資訊 ----------
+
+    match /locations/{locId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /courses/{courseId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 排班:課程時間、地點、講師等本來就是公開資訊;
+    // 反應只存匿名統計數字(reactionCounts),講師回報另存 instructor_reports
+    match /schedules/{scheduleId} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (isStaff()
+            && resource.data.locationId == myProfile().site_id
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['status', 'attendeeCount', 'cancelReason', 'confirmedAt', 'confirmedBy', 'reactionCounts'])
+            // 課程開始前不能標記為已完成或講師未到
+            && (request.resource.data.status != 'completed' || request.time >= resource.data.startTime)
+            && (request.resource.data.get('cancelReason', '') != 'instructor_absent' || request.time >= resource.data.startTime));
+    }
+
+    // ---------- 長者與報名(不公開) ----------
+
+    // 長者姓名與專屬連結代碼:只有家屬本人與總院可讀
+    match /elders/{elderId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.familyUid == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.familyUid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['name', 'familyUid', 'viewToken']);
+      allow update: if isAdmin() || (isSignedIn() && resource.data.familyUid == request.auth.uid
+        && request.resource.data.familyUid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['name', 'familyUid', 'viewToken']));
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.familyUid == request.auth.uid);
+    }
+
+    // 長者年齡與備註(健康、行動等敏感資訊)
+    match /elder_private/{elderId} {
+      allow read: if isAdmin() || isStaff() || (isSignedIn() && resource.data.familyUid == request.auth.uid);
+      allow create: if isAdmin() || (isSignedIn() && request.resource.data.familyUid == request.auth.uid
+        && get(/databases/$(database)/documents/elders/$(elderId)).data.familyUid == request.auth.uid);
+      allow update: if isAdmin() || (isSignedIn() && resource.data.familyUid == request.auth.uid
+        && request.resource.data.familyUid == request.auth.uid);
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.familyUid == request.auth.uid);
+    }
+
+    // 長者專屬連結:用隨機代碼當文件 ID,知道代碼才讀得到,不能列出全部
+    match /elder_views/{token} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if isAdmin() || (isSignedIn() && request.resource.data.familyUid == request.auth.uid);
+      allow update: if isAdmin() || (isSignedIn() && resource.data.familyUid == request.auth.uid
+        && request.resource.data.familyUid == request.auth.uid);
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.familyUid == request.auth.uid);
+    }
+
+    // 報名紀錄(含點名與現場反應):
+    // 總院、該據點人員、該課講師、家屬本人才讀得到
+    match /enrollments/{enrollmentId} {
+      allow read: if isAdmin()
+        || (isStaff() && resource.data.locationId == myProfile().site_id)
+        || (isInstructor() && resource.data.instructorId == request.auth.uid)
+        || (isSignedIn() && resource.data.familyUid == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.familyUid == request.auth.uid
+        && enrollmentId == request.resource.data.scheduleId + '_' + request.resource.data.elderId
+        && get(/databases/$(database)/documents/elders/$(request.resource.data.elderId)).data.familyUid == request.auth.uid
+        // 據點與講師必須跟排班一致,不能偽造
+        && request.resource.data.locationId == scheduleOf(request.resource.data.scheduleId).locationId
+        && request.resource.data.instructorId == scheduleOf(request.resource.data.scheduleId).instructorId
+        && enrollmentOpen(request.resource.data.scheduleId);
+      allow update: if isAdmin()
+        // 家屬:截止前只能改報名狀態
+        || (isSignedIn() && resource.data.familyUid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'enrolledAt'])
+            && enrollmentOpen(resource.data.scheduleId))
+        // 據點人員:只能改自己據點的點名與反應
+        || (isStaff() && resource.data.locationId == myProfile().site_id
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['reaction', 'reactionRecordedAt', 'attended', 'attendanceMarkedAt']));
+      allow delete: if isAdmin();
+    }
+
+    // 據點人員對個別長者的觀察紀錄
+    match /elder_observations/{obsId} {
+      allow read: if isAdmin() || (isStaff() && resource.data.locationId == myProfile().site_id);
+      allow create, update: if isStaff()
+        && request.resource.data.locationId == myProfile().site_id
+        && scheduleOf(request.resource.data.scheduleId).locationId == myProfile().site_id;
+      allow delete: if isAdmin();
+    }
+
+    // 講師課後回報(可能寫到長者健康狀況)
+    match /instructor_reports/{scheduleId} {
+      allow read: if isAdmin()
+        || (isStaff() && resource.data.locationId == myProfile().site_id)
+        || (isInstructor() && resource.data.instructorId == request.auth.uid);
+      allow create, update: if isAdmin() || (isInstructor()
+        && request.resource.data.instructorId == request.auth.uid
+        && scheduleOf(scheduleId).instructorId == request.auth.uid
+        && request.resource.data.locationId == scheduleOf(scheduleId).locationId);
+      allow delete: if isAdmin();
+    }
+
+    // ---------- 家屬分享(公開,但不含長者姓名) ----------
+
+    match /evaluations/{evalId} {
+      allow read: if true;
+      allow create, update: if isAdmin() || (
+        isSignedIn()
+        && request.resource.data.familyUid == request.auth.uid
+        && evalId == request.resource.data.scheduleId + '_' + request.resource.data.elderId
+        && request.resource.data.keys().hasOnly(['scheduleId', 'elderId', 'familyUid', 'courseTitle', 'instructorName', 'comment', 'createdAt'])
+        // 必須真的有報名、而且課程已完成
+        && get(/databases/$(database)/documents/enrollments/$(evalId)).data.familyUid == request.auth.uid
+        && get(/databases/$(database)/documents/enrollments/$(evalId)).data.status == 'enrolled'
+        && scheduleOf(request.resource.data.scheduleId).status == 'completed'
+      );
+      allow delete: if isAdmin();
+    }
+
+  }
+}
