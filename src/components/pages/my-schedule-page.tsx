@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { collection, onSnapshot, doc, updateDoc, Timestamp } from "firebase/firestore";
+import { collection, onSnapshot, doc, setDoc, query, where, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -36,6 +36,7 @@ import { zhTW } from "date-fns/locale";
 type ScheduleItem = {
   id: string;
   title: string;
+  locationId: string;
   locationName: string;
   startTime: Date;
   endTime: Date;
@@ -64,6 +65,10 @@ export function MySchedulePage() {
   const [enrollments, setEnrollments] = React.useState<EnrollmentItem[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [filter, setFilter] = React.useState<string>("upcoming");
+  const [baseSchedules, setBaseSchedules] = React.useState<ScheduleItem[]>([]);
+  const [reports, setReports] = React.useState<
+    Record<string, { instructorReport?: string; improvementNote?: string; instructorReportedAt?: Date }>
+  >({});
 
   const [reportingSchedule, setReportingSchedule] = React.useState<ScheduleItem | null>(null);
   const [reportText, setReportText] = React.useState("");
@@ -79,28 +84,52 @@ export function MySchedulePage() {
             id: d.id,
             title: data.title,
             instructorId: data.instructorId,
+            locationId: data.locationId,
             locationName: data.locationName,
             startTime: (data.startTime as Timestamp).toDate(),
             endTime: (data.endTime as Timestamp).toDate(),
             status: data.status,
             cancelReason: data.cancelReason,
-            instructorReport: data.instructorReport,
-            improvementNote: data.improvementNote,
-            instructorReportedAt: data.instructorReportedAt
-              ? (data.instructorReportedAt as Timestamp).toDate()
-              : undefined,
           };
         })
         .filter((s: any) => user && s.instructorId === user.uid) as ScheduleItem[];
-      setSchedules(list);
+      setBaseSchedules(list);
       setLoading(false);
     });
     return () => unsubscribe();
   }, [user]);
 
+  // 課後回報存在私密的 instructor_reports(可能寫到長者健康狀況),只讀自己寫的
+  React.useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, "instructor_reports"), where("instructorId", "==", user.uid));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const map: Record<string, { instructorReport?: string; improvementNote?: string; instructorReportedAt?: Date }> = {};
+      snapshot.docs.forEach((d) => {
+        const data = d.data();
+        map[d.id] = {
+          instructorReport: data.instructorReport,
+          improvementNote: data.improvementNote,
+          instructorReportedAt: data.instructorReportedAt
+            ? (data.instructorReportedAt as Timestamp).toDate()
+            : undefined,
+        };
+      });
+      setReports(map);
+    });
+    return () => unsubscribe();
+  }, [user]);
+
+  React.useEffect(() => {
+    setSchedules(baseSchedules.map((s) => ({ ...s, ...reports[s.id] })));
+  }, [baseSchedules, reports]);
+
   // 報名名單,方便講師填寫回報時能直接參考正確的長者姓名
   React.useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, "enrollments"), (snapshot) => {
+    if (!user) return;
+    // 報名紀錄不公開,講師只能讀自己授課課程的報名
+    const q = query(collection(db, "enrollments"), where("instructorId", "==", user.uid));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
       const list = snapshot.docs
         .map((d) => ({
           scheduleId: d.data().scheduleId,
@@ -111,7 +140,7 @@ export function MySchedulePage() {
       setEnrollments(list);
     });
     return () => unsubscribe();
-  }, []);
+  }, [user]);
 
   const filteredSchedules = React.useMemo(() => {
     const now = new Date();
@@ -140,7 +169,9 @@ export function MySchedulePage() {
     if (!reportingSchedule) return;
     setSubmittingReport(true);
     try {
-      await updateDoc(doc(db, "schedules", reportingSchedule.id), {
+      await setDoc(doc(db, "instructor_reports", reportingSchedule.id), {
+        instructorId: user?.uid,
+        locationId: reportingSchedule.locationId,
         instructorReport: reportText,
         improvementNote: improvementText,
         instructorReportedAt: Timestamp.now(),

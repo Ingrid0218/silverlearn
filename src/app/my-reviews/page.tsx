@@ -142,15 +142,14 @@ function MyReviewsContent() {
     try {
       const evalId = `${reviewing.scheduleId}_${reviewing.elderId}`;
       const schedule = schedules.find((s) => s.id === reviewing.scheduleId);
+      // 家屬分享會公開顯示,所以不存長者姓名
       await setDoc(doc(db, "evaluations", evalId), {
         scheduleId: reviewing.scheduleId,
         elderId: reviewing.elderId,
-        elderName: reviewing.elderName,
         familyUid: user.uid,
         courseTitle: reviewing.title,
         instructorName: schedule?.instructorName ?? "",
         comment,
-        attendeeName: reviewing.elderName,
         createdAt: Timestamp.now(),
       });
       setReviewing(null);
@@ -210,7 +209,9 @@ function MyReviewsContent() {
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>{reviewing?.title}</DialogTitle>
-            <DialogDescription>分享您對 {reviewing?.elderName} 這次上課的觀察或心得</DialogDescription>
+            <DialogDescription>
+              分享您對 {reviewing?.elderName} 這次上課的觀察或心得(會匿名顯示在公開的課程評鑑頁)
+            </DialogDescription>
           </DialogHeader>
           <Textarea
             value={comment}

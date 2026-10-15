@@ -5,10 +5,11 @@ import {
   collection,
   onSnapshot,
   doc,
-  setDoc,
-  updateDoc,
   query,
   where,
+  writeBatch,
+  arrayUnion,
+  arrayRemove,
   Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -39,6 +40,7 @@ type LocationItem = { id: string; name: string };
 type ScheduleItem = {
   id: string;
   title: string;
+  instructorId: string;
   instructorName: string;
   locationId: string;
   locationName: string;
@@ -46,7 +48,8 @@ type ScheduleItem = {
   endTime: Date;
   status: "scheduled" | "completed" | "cancelled";
 };
-type ElderProfile = { id: string; name: string };
+// viewToken:長者專屬連結用的隨機代碼,跟長者 ID 分開,避免從其他公開資料反查出長者
+type ElderProfile = { id: string; name: string; viewToken?: string };
 type EnrollmentItem = { id: string; scheduleId: string; elderId: string; status: "enrolled" | "cancelled" };
 
 function getPublicStatusBadge(s: ScheduleItem, now: Date) {
@@ -97,6 +100,7 @@ export default function CourseCalendarPage() {
         return {
           id: d.id,
           title: data.title,
+          instructorId: data.instructorId,
           instructorName: data.instructorName,
           locationId: data.locationId,
           locationName: data.locationName,
@@ -116,7 +120,9 @@ export default function CourseCalendarPage() {
     if (!isFamily || !user) return;
     const q = query(collection(db, "elders"), where("familyUid", "==", user.uid));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setElders(snapshot.docs.map((d) => ({ id: d.id, name: d.data().name } as ElderProfile)));
+      setElders(
+        snapshot.docs.map((d) => ({ id: d.id, name: d.data().name, viewToken: d.data().viewToken } as ElderProfile))
+      );
     });
     return () => unsubscribe();
   }, [isFamily, user]);
@@ -179,19 +185,34 @@ export default function CourseCalendarPage() {
     const key = `${schedule.id}_${elder.id}`;
     setTogglingKey(key);
     try {
+      // 報名紀錄與長者專屬連結的課程清單一起更新,兩邊才不會對不上
+      const batch = writeBatch(db);
+      const existing = enrollments.find((e) => e.id === key);
       if (currentlyEnrolled) {
-        await updateDoc(doc(db, "enrollments", key), { status: "cancelled" });
+        batch.update(doc(db, "enrollments", key), { status: "cancelled" });
+      } else if (existing) {
+        // 之前取消過,只把狀態改回報名中,不覆蓋其他欄位
+        batch.update(doc(db, "enrollments", key), { status: "enrolled", enrolledAt: Timestamp.now() });
       } else {
-        await setDoc(doc(db, "enrollments", key), {
+        batch.set(doc(db, "enrollments", key), {
           scheduleId: schedule.id,
           elderId: elder.id,
           elderName: elder.name,
           familyUid: user.uid,
           courseTitle: schedule.title,
+          // 冗餘存一份課程的據點與講師,讓資料庫規則能限制「只有該據點人員、該講師」讀得到
+          locationId: schedule.locationId,
+          instructorId: schedule.instructorId,
           status: "enrolled",
           enrolledAt: Timestamp.now(),
         });
       }
+      if (elder.viewToken) {
+        batch.update(doc(db, "elder_views", elder.viewToken), {
+          scheduleIds: currentlyEnrolled ? arrayRemove(schedule.id) : arrayUnion(schedule.id),
+        });
+      }
+      await batch.commit();
     } catch (err) {
       console.error("報名操作失敗:", err);
       alert("操作失敗,請再試一次");

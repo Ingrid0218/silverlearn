@@ -45,6 +45,9 @@ import {
   setDoc,
   query,
   where,
+  getDocs,
+  getDoc,
+  writeBatch,
   Timestamp,
 } from "firebase/firestore";
 
@@ -282,6 +285,24 @@ export function SchedulerPage() {
     try {
       if (editingScheduleId) {
         await updateDoc(doc(db, "schedules", editingScheduleId), payload);
+        // 報名紀錄與講師回報裡冗餘存了據點、講師(資料庫規則靠它們判斷誰能讀),
+        // 排班改了據點或講師時要一起更新,否則新據點的人員會看不到報名名單
+        const enrollSnap = await getDocs(
+          query(collection(db, "enrollments"), where("scheduleId", "==", editingScheduleId))
+        );
+        const reportSnap = await getDoc(doc(db, "instructor_reports", editingScheduleId));
+        if (!enrollSnap.empty || reportSnap.exists()) {
+          const batch = writeBatch(db);
+          enrollSnap.docs.forEach((d) =>
+            batch.update(d.ref, {
+              locationId: payload.locationId,
+              instructorId: payload.instructorId,
+              courseTitle: payload.title,
+            })
+          );
+          if (reportSnap.exists()) batch.update(reportSnap.ref, { locationId: payload.locationId });
+          await batch.commit();
+        }
       } else {
         await addDoc(collection(db, "schedules"), { ...payload, status: "scheduled" });
       }

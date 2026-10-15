@@ -25,7 +25,7 @@ import { getEnrollmentDeadline, isEnrollmentClosed } from "@/lib/enrollment";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, doc, updateDoc, setDoc, query, where, Timestamp } from "firebase/firestore";
+import { collection, onSnapshot, doc, updateDoc, setDoc, query, where, writeBatch, increment, Timestamp } from "firebase/firestore";
 import { Textarea } from "@/components/ui/textarea";
 
 type ScheduleItem = {
@@ -39,8 +39,6 @@ type ScheduleItem = {
   status: "scheduled" | "completed" | "cancelled";
   attendeeCount?: number;
   cancelReason?: "instructor_absent" | "other";
-  instructorReport?: string;
-  improvementNote?: string;
 };
 
 type EnrollmentItem = {
@@ -129,8 +127,6 @@ export function AttendancePage() {
           status: data.status,
           attendeeCount: data.attendeeCount,
           cancelReason: data.cancelReason,
-          instructorReport: data.instructorReport,
-          improvementNote: data.improvementNote,
         } as ScheduleItem;
       });
       setSchedules(list);
@@ -139,8 +135,34 @@ export function AttendancePage() {
     return () => unsubscribe();
   }, []);
 
+  // 講師課後回報:存在私密的 instructor_reports(可能寫到長者健康狀況),
+  // 總院讀全部,據點人員只能讀自己據點的
+  const [reports, setReports] = React.useState<Record<string, { instructorReport?: string; improvementNote?: string }>>({});
+
   React.useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, "enrollments"), (snapshot) => {
+    if (role !== "admin" && !(role === "staff" && siteId)) return;
+    const ref =
+      role === "admin"
+        ? collection(db, "instructor_reports")
+        : query(collection(db, "instructor_reports"), where("locationId", "==", siteId));
+    const unsubscribe = onSnapshot(ref, (snapshot) => {
+      const map: Record<string, { instructorReport?: string; improvementNote?: string }> = {};
+      snapshot.docs.forEach((d) => {
+        map[d.id] = { instructorReport: d.data().instructorReport, improvementNote: d.data().improvementNote };
+      });
+      setReports(map);
+    });
+    return () => unsubscribe();
+  }, [role, siteId]);
+
+  // 報名紀錄(含點名與現場反應)不公開:總院讀全部,據點人員只能讀自己據點的
+  React.useEffect(() => {
+    if (role !== "admin" && !(role === "staff" && siteId)) return;
+    const ref =
+      role === "admin"
+        ? collection(db, "enrollments")
+        : query(collection(db, "enrollments"), where("locationId", "==", siteId));
+    const unsubscribe = onSnapshot(ref, (snapshot) => {
       const list = snapshot.docs
         .map((d) => ({
           id: d.id,
@@ -155,7 +177,7 @@ export function AttendancePage() {
       setEnrollments(list);
     });
     return () => unsubscribe();
-  }, []);
+  }, [role, siteId]);
 
   const scopedSchedules = React.useMemo(() => {
     const base = role === "admin" ? schedules : schedules.filter((s) => s.locationId === siteId);
@@ -168,12 +190,21 @@ export function AttendancePage() {
     return enrollments.filter((e) => e.scheduleId === scheduleId);
   }
 
-  async function handleSetReaction(enrollmentId: string, reaction: "happy" | "neutral" | "sad") {
+  async function handleSetReaction(e: EnrollmentItem, reaction: "happy" | "neutral" | "sad") {
+    if (e.reaction === reaction) return;
     try {
-      await updateDoc(doc(db, "enrollments", enrollmentId), {
+      // 公開評鑑頁只讀排班上的匿名統計數字(reactionCounts),看不到是哪位長者的反應
+      const batch = writeBatch(db);
+      batch.update(doc(db, "enrollments", e.id), {
         reaction,
         reactionRecordedAt: Timestamp.now(),
       });
+      const countUpdate: Record<string, ReturnType<typeof increment>> = {
+        [`reactionCounts.${reaction}`]: increment(1),
+      };
+      if (e.reaction) countUpdate[`reactionCounts.${e.reaction}`] = increment(-1);
+      batch.update(doc(db, "schedules", e.scheduleId), countUpdate);
+      await batch.commit();
     } catch (err) {
       console.error("記錄反應失敗:", err);
       alert("操作失敗,請再試一次");
@@ -245,7 +276,7 @@ export function AttendancePage() {
         status: "completed",
         attendeeCount: count,
         confirmedAt: Timestamp.now(),
-        confirmedBy: user?.email ?? null,
+        confirmedBy: user?.uid ?? null,
       });
     } catch (err) {
       console.error("確認出席失敗:", err);
@@ -272,7 +303,7 @@ export function AttendancePage() {
         status: "cancelled",
         cancelReason: reason,
         confirmedAt: Timestamp.now(),
-        confirmedBy: user?.email ?? null,
+        confirmedBy: user?.uid ?? null,
       });
     } catch (err) {
       console.error("更新失敗:", err);
@@ -403,7 +434,7 @@ export function AttendancePage() {
                                             key={r.key}
                                             type="button"
                                             disabled={!canOperate}
-                                            onClick={() => handleSetReaction(e.id, r.key)}
+                                            onClick={() => handleSetReaction(e, r.key)}
                                             className={`text-lg transition ${
                                               e.reaction === r.key ? "opacity-100 scale-125" : "opacity-30"
                                             } ${canOperate ? "cursor-pointer hover:opacity-70" : "cursor-default"}`}
@@ -473,18 +504,18 @@ export function AttendancePage() {
                         );
                       })()}
 
-                      {(s.instructorReport || s.improvementNote) && (
+                      {(reports[s.id]?.instructorReport || reports[s.id]?.improvementNote) && (
                         <div className="text-sm space-y-1.5 border-t pt-2">
-                          {s.instructorReport && (
+                          {reports[s.id]?.instructorReport && (
                             <div>
                               <p className="text-xs text-muted-foreground mb-0.5">講師回報:上課內容與長者狀況</p>
-                              <p className="bg-amber-50 border border-amber-100 rounded-lg p-2">{s.instructorReport}</p>
+                              <p className="bg-amber-50 border border-amber-100 rounded-lg p-2">{reports[s.id]?.instructorReport}</p>
                             </div>
                           )}
-                          {s.improvementNote && (
+                          {reports[s.id]?.improvementNote && (
                             <div>
                               <p className="text-xs text-muted-foreground mb-0.5">講師回報:課程改進建議</p>
-                              <p className="bg-amber-50 border border-amber-100 rounded-lg p-2">{s.improvementNote}</p>
+                              <p className="bg-amber-50 border border-amber-100 rounded-lg p-2">{reports[s.id]?.improvementNote}</p>
                             </div>
                           )}
                         </div>

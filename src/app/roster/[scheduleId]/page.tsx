@@ -68,11 +68,10 @@ function RosterContent() {
         }
         setSchedule(info);
 
-        const q = query(
-          collection(db, "enrollments"),
-          where("scheduleId", "==", scheduleId),
-          where("status", "==", "enrolled")
-        );
+        // 報名紀錄不公開;據點人員的查詢必須帶上自己的據點,資料庫規則才會放行
+        const filters = [where("scheduleId", "==", scheduleId), where("status", "==", "enrolled")];
+        if (role === "staff") filters.push(where("locationId", "==", siteId));
+        const q = query(collection(db, "enrollments"), ...filters);
         const enrollSnap = await getDocs(q);
 
         // 一併帶出長者資料裡的備註(例如行動需要輔助),方便現場人員留意

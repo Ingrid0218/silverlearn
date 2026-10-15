@@ -33,7 +33,14 @@ type ElderProfile = {
   name: string;
   age: string;
   notes: string;
+  viewToken?: string;
 };
+
+// 長者專屬連結用的隨機代碼。跟長者 ID 分開,
+// 這樣就算長者 ID 出現在其他資料裡,也沒辦法反查出長者姓名與課程
+function newViewToken() {
+  return crypto.randomUUID().replace(/-/g, "");
+}
 
 function MyEldersContent() {
   const { user } = useAuth();
@@ -48,17 +55,20 @@ function MyEldersContent() {
   const [notes, setNotes] = React.useState("");
   const [saving, setSaving] = React.useState(false);
 
-  // 長者資料分兩處存放:
-  // - elders:只有姓名,公開可讀(長者專屬連結免登入需要顯示姓名)
-  // - elder_private:年齡與備註(健康、行動等敏感資訊),只有家屬本人、總院與據點人員可讀
-  const [publicElders, setPublicElders] = React.useState<{ id: string; name: string }[]>([]);
+  // 長者資料分三處存放:
+  // - elders:姓名與專屬連結代碼,只有家屬本人與總院可讀
+  // - elder_private:年齡與備註(健康、行動等敏感資訊),家屬本人、總院與據點人員可讀
+  // - elder_views/{代碼}:長者專屬連結顯示用(姓名 + 已報名課程),知道代碼才讀得到
+  const [publicElders, setPublicElders] = React.useState<{ id: string; name: string; viewToken?: string }[]>([]);
   const [privateInfo, setPrivateInfo] = React.useState<Record<string, { age: string; notes: string }>>({});
 
   React.useEffect(() => {
     if (!user) return;
     const q = query(collection(db, "elders"), where("familyUid", "==", user.uid));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setPublicElders(snapshot.docs.map((d) => ({ id: d.id, name: d.data().name })));
+      setPublicElders(
+        snapshot.docs.map((d) => ({ id: d.id, name: d.data().name, viewToken: d.data().viewToken }))
+      );
       setLoading(false);
     });
     return () => unsubscribe();
@@ -82,6 +92,7 @@ function MyEldersContent() {
       publicElders.map((e) => ({
         id: e.id,
         name: e.name,
+        viewToken: e.viewToken,
         age: privateInfo[e.id]?.age ?? "",
         notes: privateInfo[e.id]?.notes ?? "",
       }))
@@ -112,12 +123,18 @@ function MyEldersContent() {
     setSaving(true);
     try {
       if (editingId) {
+        const editing = elders.find((e) => e.id === editingId);
         await updateDoc(doc(db, "elders", editingId), { name });
         await setDoc(doc(db, "elder_private", editingId), { age, notes, familyUid: user.uid });
+        // 改名時,專屬連結上顯示的名字也要一起更新
+        if (editing?.viewToken) {
+          await updateDoc(doc(db, "elder_views", editing.viewToken), { name });
+        }
       } else {
-        // 先建立公開的 elders(只有姓名),再用同一個 ID 建立私密資料
-        const ref = await addDoc(collection(db, "elders"), { name, familyUid: user.uid });
+        const viewToken = newViewToken();
+        const ref = await addDoc(collection(db, "elders"), { name, familyUid: user.uid, viewToken });
         await setDoc(doc(db, "elder_private", ref.id), { age, notes, familyUid: user.uid });
+        await setDoc(doc(db, "elder_views", viewToken), { name, familyUid: user.uid, scheduleIds: [] });
       }
       setDialogOpen(false);
     } catch (err) {
@@ -133,6 +150,10 @@ function MyEldersContent() {
     if (!confirm("確定要刪除這位長者的資料嗎?之前幫他報名的課程紀錄不會被刪除。")) return;
     setSaving(true);
     try {
+      const editing = elders.find((e) => e.id === editingId);
+      if (editing?.viewToken) {
+        await deleteDoc(doc(db, "elder_views", editing.viewToken));
+      }
       await deleteDoc(doc(db, "elder_private", editingId));
       await deleteDoc(doc(db, "elders", editingId));
       setDialogOpen(false);
@@ -144,15 +165,19 @@ function MyEldersContent() {
     }
   }
 
-  function getElderViewUrl(elderId: string) {
+  function getElderViewUrl(viewToken: string) {
     if (typeof window === "undefined") return "";
-    return `${window.location.origin}/elder-view/${elderId}`;
+    return `${window.location.origin}/elder-view/${viewToken}`;
   }
 
-  async function handleCopyLink(elderId: string) {
+  async function handleCopyLink(elder: ElderProfile) {
+    if (!elder.viewToken) {
+      alert("這位長者的專屬連結尚未建立,請聯絡管理者");
+      return;
+    }
     try {
-      await navigator.clipboard.writeText(getElderViewUrl(elderId));
-      setCopiedId(elderId);
+      await navigator.clipboard.writeText(getElderViewUrl(elder.viewToken));
+      setCopiedId(elder.id);
       setTimeout(() => setCopiedId(null), 2000);
     } catch (err) {
       console.error("複製連結失敗:", err);
@@ -191,7 +216,7 @@ function MyEldersContent() {
                   <Button variant="ghost" size="sm" onClick={() => openEditDialog(e)}>
                     編輯
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleCopyLink(e.id)}>
+                  <Button variant="outline" size="sm" onClick={() => handleCopyLink(e)}>
                     {copiedId === e.id ? "已複製!" : "複製長者專屬連結"}
                   </Button>
                 </div>

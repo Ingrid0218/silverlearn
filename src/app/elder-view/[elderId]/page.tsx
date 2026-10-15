@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useParams } from "next/navigation";
-import { collection, doc, onSnapshot, query, where, Timestamp } from "firebase/firestore";
+import { collection, doc, onSnapshot, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { format } from "date-fns";
 import { zhTW } from "date-fns/locale";
@@ -20,7 +20,10 @@ type ScheduleInfo = {
 
 export default function ElderViewPage() {
   const params = useParams();
-  const elderId = params.elderId as string;
+  // 網址裡的是「專屬連結代碼」,不是長者 ID。
+  // 長者 ID 會出現在其他資料裡,用獨立的隨機代碼才不會被拿來反查長者的姓名與課程
+  // (資料夾仍沿用 [elderId] 這個名稱,不用搬移檔案)
+  const viewToken = params.elderId as string;
 
   const [elderName, setElderName] = React.useState("");
   const [notFound, setNotFound] = React.useState(false);
@@ -28,27 +31,27 @@ export default function ElderViewPage() {
   const [enrolledScheduleIds, setEnrolledScheduleIds] = React.useState<string[]>([]);
   const [allSchedules, setAllSchedules] = React.useState<ScheduleInfo[]>([]);
 
+  // 只讀這位長者的專屬連結資料:姓名 + 已報名的課程清單,不需要碰報名紀錄
   React.useEffect(() => {
-    if (!elderId) return;
-    const unsubscribe = onSnapshot(doc(db, "elders", elderId), (snap) => {
-      if (snap.exists()) {
-        setElderName(snap.data().name);
-      } else {
+    if (!viewToken) return;
+    const unsubscribe = onSnapshot(
+      doc(db, "elder_views", viewToken),
+      (snap) => {
+        if (snap.exists()) {
+          setElderName(snap.data().name);
+          setEnrolledScheduleIds(snap.data().scheduleIds ?? []);
+        } else {
+          setNotFound(true);
+        }
+        setLoading(false);
+      },
+      () => {
         setNotFound(true);
+        setLoading(false);
       }
-      setLoading(false);
-    });
+    );
     return () => unsubscribe();
-  }, [elderId]);
-
-  React.useEffect(() => {
-    if (!elderId) return;
-    const q = query(collection(db, "enrollments"), where("elderId", "==", elderId), where("status", "==", "enrolled"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setEnrolledScheduleIds(snapshot.docs.map((d) => d.data().scheduleId));
-    });
-    return () => unsubscribe();
-  }, [elderId]);
+  }, [viewToken]);
 
   React.useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "schedules"), (snapshot) => {

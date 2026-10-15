@@ -6,7 +6,7 @@ import { db } from "@/lib/firebase";
 import { PublicHeader } from "@/components/public-header";
 
 type EnrollmentReaction = { courseTitle: string; reaction?: "happy" | "neutral" | "sad" };
-type FamilyShare = { id: string; courseTitle: string; comment: string; attendeeName: string };
+type FamilyShare = { id: string; courseTitle: string; comment: string };
 
 const REACTIONS: { key: "happy" | "neutral" | "sad"; emoji: string; label: string }[] = [
   { key: "happy", emoji: "😊", label: "開心" },
@@ -19,11 +19,19 @@ export default function ReviewsPage() {
   const [shares, setShares] = React.useState<FamilyShare[]>([]);
   const [loading, setLoading] = React.useState(true);
 
+  // 反應統計只讀排班上的匿名數字(reactionCounts),
+  // 個別長者的報名、點名與反應都不公開
   React.useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, "enrollments"), (snapshot) => {
-      const list = snapshot.docs
-        .map((d) => ({ courseTitle: d.data().courseTitle, reaction: d.data().reaction }))
-        .filter((e) => e.courseTitle && e.reaction);
+    const unsubscribe = onSnapshot(collection(db, "schedules"), (snapshot) => {
+      const list: EnrollmentReaction[] = [];
+      snapshot.docs.forEach((d) => {
+        const data = d.data();
+        const counts = (data.reactionCounts ?? {}) as Record<string, number>;
+        REACTIONS.forEach((r) => {
+          const n = Math.max(0, counts[r.key] ?? 0);
+          for (let i = 0; i < n; i++) list.push({ courseTitle: data.title, reaction: r.key });
+        });
+      });
       setReactions(list);
       setLoading(false);
     });
@@ -37,7 +45,6 @@ export default function ReviewsPage() {
           id: d.id,
           courseTitle: d.data().courseTitle,
           comment: d.data().comment,
-          attendeeName: d.data().attendeeName,
         }))
         .filter((e) => e.comment);
       setShares(list);
@@ -98,7 +105,7 @@ export default function ReviewsPage() {
                     <div className="grid gap-3 sm:grid-cols-2">
                       {courseShares.map((s) => (
                         <div key={s.id} className="bg-white rounded-xl border border-gray-100 p-4">
-                          <p className="text-xs text-gray-400 mb-1">{s.attendeeName} 的家屬分享</p>
+                          <p className="text-xs text-gray-400 mb-1">家屬分享</p>
                           <p className="text-sm text-gray-600">{s.comment}</p>
                         </div>
                       ))}
